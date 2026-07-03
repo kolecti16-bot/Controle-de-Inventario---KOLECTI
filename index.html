@@ -156,7 +156,7 @@ tr.tbl-row:hover{background:#FAFAF7;cursor:pointer;}
 <div id="printArea"></div>
 
 <script>
-const CATS = ["Móveis","Computadores","Periféricos","TV/Monitores","Materiais de Operação","Outros"];
+let CATS = ["Computadores","Materiais de Operação","Móveis","Periféricos","TV/Monitores"];
 const STATUS = ["Ativo","Em Manutenção","Baixado"];
 const SHEET_URL = "https://script.google.com/macros/s/AKfycbzk6SrlqKmgGUFSyR1y3MiMoH71V64BC8m30o8Njf3qgerotu5Ktj3HiFPooA3TxKui/exec";
 let ativos = {};
@@ -195,6 +195,14 @@ async function loadAll(silent){
       });
     }
     ativos = novo;
+    
+    // Atualiza a lista de categorias dinamicamente com base na planilha
+    const categoriasEmUso = [...new Set(Object.values(ativos).map(a => a.categoria).filter(Boolean))];
+    categoriasEmUso.forEach(c => {
+      if(!CATS.includes(c)) CATS.push(c);
+    });
+    CATS.sort(); // Mantém a lista sempre em ordem alfabética
+    
     render();
     
     if (elLastUpdate) {
@@ -414,7 +422,13 @@ function formHtml(existing, prefillCode){
   return `
     <div class="form-grid">
       <div><label>Código / Patrimônio</label><input type="text" id="f_codigo" value="${a.codigo}" ${existing?'readonly':''} placeholder="ex: KLT-000123"></div>
-      <div><label>Categoria</label><select id="f_categoria">${CATS.map(c=>`<option ${c===a.categoria?'selected':''}>${c}</option>`).join('')}</select></div>
+      <div>
+        <label>Categoria</label>
+        <select id="f_categoria">
+          ${CATS.map(c=>`<option ${c===a.categoria?'selected':''}>${c}</option>`).join('')}
+          <option value="NOVA_CATEGORIA" style="font-weight:bold; color:var(--moss);">+ Nova categoria...</option>
+        </select>
+      </div>
       <div class="full"><label>Descrição</label><input type="text" id="f_descricao" value="${a.descricao}" placeholder="ex: Notebook Dell Latitude 5440"></div>
       <div><label>Marca / Modelo</label><input type="text" id="f_marca" value="${a.marca}"></div>
       <div><label>Número de série</label><input type="text" id="f_serie" value="${a.numeroSerie}"></div>
@@ -464,6 +478,26 @@ function openModal(existingCode, prefillCode){
   document.getElementById('btnCancel').onclick = closeModal;
   document.getElementById('btnPrintLabel').onclick = ()=>printLabel(document.getElementById('f_codigo').value, document.getElementById('f_descricao').value);
   document.getElementById('btnSave').onclick = onSaveForm;
+  
+  // Script mágico para adicionar nova categoria
+  const catSelect = document.getElementById('f_categoria');
+  catSelect.addEventListener('change', (e) => {
+    if(e.target.value === 'NOVA_CATEGORIA') {
+      const nova = prompt('Digite o nome da nova categoria:');
+      if(nova && nova.trim()) {
+        const nome = nova.trim();
+        if(!CATS.includes(nome)) {
+          CATS.push(nome);
+          CATS.sort();
+        }
+        e.target.innerHTML = CATS.map(c=>`<option ${c===nome?'selected':''}>${c}</option>`).join('') + '<option value="NOVA_CATEGORIA" style="font-weight:bold; color:var(--moss);">+ Nova categoria...</option>';
+        e.target.value = nome;
+      } else {
+        e.target.value = existing ? existing.categoria : CATS[0];
+      }
+    }
+  });
+
   if(existing){
     document.getElementById('btnDelete').onclick = async ()=>{
       if(confirm('Excluir este ativo?')){
@@ -542,7 +576,28 @@ function attachPageEvents(){
     document.getElementById('f_codigo').addEventListener('input', (e)=>drawBarcode(e.target.value));
     drawBarcode('');
     document.getElementById('btnPrintLabel').onclick = ()=>printLabel(document.getElementById('f_codigo').value, document.getElementById('f_descricao').value);
-    // reuse the same save flow but without modal buttons; add a save button dynamically
+    
+    // Configura o evento do select de categoria também na tela de cadastro (Dashboard)
+    const catSelect = document.getElementById('f_categoria');
+    if (catSelect) {
+      catSelect.addEventListener('change', (e) => {
+        if(e.target.value === 'NOVA_CATEGORIA') {
+          const nova = prompt('Digite o nome da nova categoria:');
+          if(nova && nova.trim()) {
+            const nome = nova.trim();
+            if(!CATS.includes(nome)) {
+              CATS.push(nome);
+              CATS.sort();
+            }
+            e.target.innerHTML = CATS.map(c=>`<option ${c===nome?'selected':''}>${c}</option>`).join('') + '<option value="NOVA_CATEGORIA" style="font-weight:bold; color:var(--moss);">+ Nova categoria...</option>';
+            e.target.value = nome;
+          } else {
+            e.target.value = CATS[0];
+          }
+        }
+      });
+    }
+
     const panel = document.getElementById('content').querySelector('.panel');
     if(!document.getElementById('btnSaveCadastro')){
       const div = document.createElement('div');
